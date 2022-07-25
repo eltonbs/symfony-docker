@@ -1,15 +1,38 @@
-version: "3.4"
+version: "3.8"
 
 # Development environment override
 services:
   php:
     volumes:
       # The "cached" option has no effect on Linux but improves performance on Mac
-      - ./:/srv/app:rw,cached
-      - ./docker/php/conf.d/symfony.dev.ini:/usr/local/etc/php/conf.d/symfony.ini
+      - ./:/app:rw,cached
+      - ./docker/php/conf.d/symfony.dev.ini:/usr/local/etc/php/conf.d/symfony.dev.ini
       # If you develop on Mac you can remove the var/ directory from the bind-mount
-      # for better performance by enabling the next line 
-      # - /srv/app/var
+      # for better performance by enabling the next line
+      # - /app/var
     environment:
-      APP_ENV: dev
+      ### Xdebug ###
+      # See https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host
+      # See https://github.com/docker/for-linux/issues/264
+      # The `client_host` below may optionally be replaced with `discover_client_host=yes`
+      # Add `start_with_request=yes` to start debug session on each request
+      XDEBUG_CONFIG: >-
+        client_host=host.docker.internal
+      XDEBUG_MODE: debug
+      # This should correspond to the server declared in PHPStorm `Preferences | Languages & Frameworks | PHP | Servers`
+      # Then PHPStorm will use the corresponding path mappings
+      PHP_IDE_CONFIG: serverName=symfony
+    extra_hosts:
+      # Ensure that host.docker.internal is correctly defined on Linux
+      - host.docker.internal:host-gateway
 
+  nginx:
+    volumes:
+      - ./public:/app/public:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+
+  ###> doctrine/doctrine-bundle ###
+  database:
+    ports:
+      - "3306:3306"
+###< doctrine/doctrine-bundle ###

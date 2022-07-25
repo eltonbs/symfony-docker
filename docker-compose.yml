@@ -1,25 +1,58 @@
-version: "3.4"
+version: "3.8"
 
 services:
   php:
     build:
       context: .
-      target: symfony_php
-      args:
-        SYMFONY_VERSION: ${SYMFONY_VERSION:-}
-        SKELETON: ${SKELETON:-symfony/skeleton}
-        STABILITY: ${STABILITY:-stable}
+      target: app_php
     restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE:-UTC}
     volumes:
       - php_socket:/var/run/php
-    healthcheck:
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 30s
+    depends_on:
+      database:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: .
+      target: app_nginx
+    restart: unless-stopped
     environment:
-      # Run "composer require symfony/orm-pack" to install and configure Doctrine ORM
-      DATABASE_URL: postgresql://${POSTGRES_USER:-symfony}:${POSTGRES_PASSWORD:-ChangeMe}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-13}
+      HOSTNAME: ${HOSTNAME:-symfony.local}
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+      - php_socket:/var/run/php
+    depends_on:
+      - php
+    ports:
+      - "80:80"
+      - "443:443"
+  
+  ###> doctrine/doctrine-bundle ###
+  database:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-!ChangeMe!}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-app}
+      MYSQL_USER: ${MYSQL_USER:-db_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ChangeMe}
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+      - db-data:/var/lib/mysql
+      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
+      # - ./docker/db/data:/var/lib/mysql:rw
+    healthcheck:
+      test: "mysql $$MYSQL_DATABASE -u$$MYSQL_USER -p$$MYSQL_PASSWORD -e 'SELECT 1;'"
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  ###< doctrine/doctrine-bundle ###
 
 volumes:
   php_socket:
+  ###> doctrine/doctrine-bundle ###
+  db-data:
+  ###< doctrine/doctrine-bundle ###
