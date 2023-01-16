@@ -1,7 +1,7 @@
 server {
 
-    listen 80;
-    listen 443 ssl;
+    listen ${HTTP_PORT};
+    listen ${HTTPS_PORT} ssl;
 
     server_name ${HOSTNAME};
     root /app/public;

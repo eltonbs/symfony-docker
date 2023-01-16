@@ -29,10 +29,10 @@ services:
   nginx:
     volumes:
       - ./public:/app/public:ro
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/templates:/etc/nginx/templates:ro
 
   ###> doctrine/doctrine-bundle ###
   database:
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:${MYSQL_PORT:-3306}"
 ###< doctrine/doctrine-bundle ###
