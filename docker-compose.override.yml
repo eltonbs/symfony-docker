@@ -3,6 +3,10 @@ version: "3.8"
 # Development environment override
 services:
   php:
+    build:
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
     volumes:
       # The "cached" option has no effect on Linux but improves performance on Mac
       - ./:/app:rw,cached
@@ -27,6 +31,9 @@ services:
       - host.docker.internal:host-gateway
 
   nginx:
+    build:
+      args:
+        - GID=${GID:-1000}
     volumes:
       - ./public:/app/public:ro
       - ./docker/nginx/templates:/etc/nginx/templates:ro

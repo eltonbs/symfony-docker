@@ -3,7 +3,7 @@
 # https://docs.docker.com/compose/compose-file/#target
 
 # https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
-ARG PHP_VERSION=8.1
+ARG PHP_VERSION=8.2
 ARG NGINX_VERSION=stable
 ARG COMPOSER_VERSION=lts
 ARG NODE_VERSION=lts
@@ -16,6 +16,13 @@ FROM node:${NODE_VERSION}-alpine as node
 FROM ghcr.io/symfony-cli/symfony-cli:${SYMFONY_CLI_VERSION} as symfony_cli
 
 FROM php:${PHP_VERSION}-fpm-alpine AS app_php
+ARG UID
+ARG GID
+
+# Recreate 'www-data' user and group with host UID/GID
+RUN deluser --remove-home www-data; \
+	addgroup --system --gid ${GID} www-data; \
+	adduser --disabled-password --system --uid ${UID} -G www-data www-data
 
 # persistent / runtime deps
 RUN apk add --no-cache \
@@ -23,7 +30,6 @@ RUN apk add --no-cache \
 	fcgi \
 	file \
 	gettext \
-	git \
 	gnu-libiconv \
 	tzdata \
 	;
@@ -71,6 +77,8 @@ RUN ln -s $PHP_INI_DIR/php.ini-development $PHP_INI_DIR/php.ini
 
 COPY docker/php/php-fpm.d/zz-docker.conf /usr/local/etc/php-fpm.d/zz-docker.conf
 
+# PHP-FPM socket volume
+RUN mkdir -p /var/run/php && chown www-data /var/run/php
 VOLUME /var/run/php
 
 ### Composer ###
@@ -94,7 +102,9 @@ RUN corepack prepare yarn@${YARN_VERSION} --activate
 COPY --from=symfony_cli /usr/local/bin/symfony /usr/local/bin/symfony
 
 ### XDebug ###
-ARG XDEBUG_VERSION=3.1.6
+ARG XDEBUG_VERSION=3.2.2
+
+RUN apk add --update linux-headers
 
 RUN set -eux; \
 	apk add --no-cache --virtual .build-deps $PHPIZE_DEPS; \
@@ -102,15 +112,24 @@ RUN set -eux; \
 	docker-php-ext-enable xdebug; \
 	apk del .build-deps
 
+USER www-data
+
 WORKDIR /app
 
 
 FROM nginx:${NGINX_VERSION}-alpine AS app_nginx
+ARG GID
 
 RUN apk add --no-cache \
 	openssl \
 	tzdata \
+	shadow \
 	;
+
+# Change the 'www-data' group ID to host GID
+# Add 'nginx' user to 'www-data' group to allow read/write to PHP-FPM socket
+RUN groupmod --gid ${GID} www-data; \
+	usermod --append -G www-data nginx
 
 # Create self-signed SSL certificate
 RUN mkdir -p /etc/ssl/private
